@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Cloudinary Test</title>
+  </head>
+  <body>
+    <h1>Cloudinary Upload Test</h1>
+
+    <input type="file" id="fileInput" />
+    <button onclick="uploadFile()">Upload</button>
+
+    <div id="result"></div>
+
+    <script>
+      function uploadFile() {
+        const fileInput = document.getElementById("fileInput");
+        const resultDiv = document.getElementById("result");
+
+        if (!fileInput.files.length) {
+          resultDiv.innerHTML = "Please select a file";
+          return;
+        }
+
+        const file = fileInput.files[0];
+        const formData = new FormData();
+
+        const cloudName = "dn1w8k2l1";
+        const uploadPreset = "restaurant_images";
+
+        formData.append("file", file);
+        formData.append("upload_preset", uploadPreset);
+
+        resultDiv.innerHTML = "Uploading...";
+
+        fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+          method: "POST",
+          body: formData,
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            console.log(data);
+            if (data.error) {
+              resultDiv.innerHTML = `Error: ${JSON.stringify(data.error)}`;
+            } else {
+              resultDiv.innerHTML = `Success! Uploaded to: ${data.secure_url}`;
+            }
+          })
+          .catch((error) => {
+            resultDiv.innerHTML = `Error: ${error.message}`;
+          });
+      }
+    </script>
+  </body>
+</html>
