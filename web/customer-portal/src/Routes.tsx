@@ -6,10 +6,18 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ProfilePage from './pages/ProfilePage';
 import OrdersPage from './pages/OrdersPage';
+import OrderDetailPage from './pages/order/OrderDetailPage';
 import AboutUsPage from './pages/AboutUsPage';
 import ContactUs from './pages/ContactUs';
 import NotFoundPage from './pages/NotFoundPage';
 import ProtectedRoute from './components/ProtectedRoute';
+import OrderSummaryPage from './pages/order/OrderSummaryPage';
+import OrderSuccessPage from './pages/order/OrderSuccessPage';
+import OrderFailedPage from './pages/order/OrderFailedPage';
+import CartPage from './pages/order/CartPage';
+import PaymentSummaryPage from './pages/payment/PaymentSummaryPage';
+import PaymentSuccessPage from './pages/payment/PaymentSuccessPage';
+import PaymentFailedPage from './pages/payment/PaymentFailedPage';
 
 const Routes: React.FC = () => {
   return (
@@ -28,14 +36,35 @@ const Routes: React.FC = () => {
             </ProtectedRoute>
           }
         />
-        <Route
-          path="orders"
-          element={
-            <ProtectedRoute>
-              <OrdersPage />
-            </ProtectedRoute>
-          }
-        />
+        <Route path="orders">
+          <Route
+            index
+            element={
+              <ProtectedRoute>
+                <OrdersPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path=":id"
+            element={
+              <ProtectedRoute>
+                <OrderDetailPage />
+              </ProtectedRoute>
+            }
+          />
+        </Route>
+        <Route path="order">
+          <Route path="cart" element={<CartPage />} />
+          <Route path="summary" element={<OrderSummaryPage />} />
+          <Route path="success" element={<OrderSuccessPage />} />
+          <Route path="failed" element={<OrderFailedPage />} />
+        </Route>
+        <Route path="payment">
+          <Route path="" element={<PaymentSummaryPage />} />
+          <Route path="success" element={<PaymentSuccessPage />} />
+          <Route path="failed" element={<PaymentFailedPage />} />
+        </Route>
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </RouterRoutes>

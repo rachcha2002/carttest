@@ -1,16 +1,54 @@
-import { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, Image } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { FontAwesome5 } from '@expo/vector-icons';
+import { useState } from "react";
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+  Platform,
+  Image,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { FontAwesome5 } from "@expo/vector-icons";
+import { useAuth } from "../../src/context/AuthContext";
+import { useRouter } from "expo-router";
 
 export default function Dashboard() {
   const [isOnline, setIsOnline] = useState(true);
+  const { user, updateProfile } = useAuth();
+  const router = useRouter();
 
   const stats = {
     deliveries: 12,
     earnings: 1250,
     rating: 4.8,
-    avgTime: 25
+    avgTime: 25,
+  };
+
+  // Default profile image if none is available
+  const profileImageSource = user?.profilePicture
+    ? { uri: user.profilePicture }
+    : require("../../assets/default-profile.png"); // Make sure to add a default image
+
+  // Handle availability status change
+  const toggleAvailability = async () => {
+    try {
+      const newStatus = isOnline ? "offline" : "online";
+
+      // Update the status in the backend
+      await updateProfile({
+        deliveryInfo: {
+          ...user?.deliveryInfo,
+          availabilityStatus: newStatus,
+        },
+      });
+
+      // Update local state
+      setIsOnline(!isOnline);
+    } catch (error) {
+      console.error("Failed to update availability:", error);
+      console.error("Failed to update availability:", error);
+    }
   };
 
   return (
@@ -19,14 +57,16 @@ export default function Dashboard() {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Text style={styles.headerTitle}>Welcome, Rider!</Text>
+            <Text style={styles.headerTitle}>
+              Welcome, {user?.name || "Rider"}!
+            </Text>
             <Text style={styles.headerSubtitle}>Ready for deliveries?</Text>
           </View>
-          <TouchableOpacity style={styles.profileImageContainer}>
-            <Image
-              source={{ uri: 'https://i.pravatar.cc/150?img=12' }}
-              style={styles.profileImage}
-            />
+          <TouchableOpacity
+            style={styles.profileImageContainer}
+            onPress={() => router.push("/profile")}
+          >
+            <Image source={profileImageSource} style={styles.profileImage} />
           </TouchableOpacity>
         </View>
 
@@ -34,13 +74,17 @@ export default function Dashboard() {
         <View style={styles.statusCard}>
           <View style={styles.statusRow}>
             <Text style={styles.statusText}>
-              Status: {isOnline ? 'Active' : 'Offline'}
+              Status: {isOnline ? "Active" : "Offline"}
             </Text>
-            <TouchableOpacity 
-              style={[styles.statusButton, isOnline ? styles.offlineButton : styles.onlineButton]}
-              onPress={() => setIsOnline(!isOnline)}>
+            <TouchableOpacity
+              style={[
+                styles.statusButton,
+                isOnline ? styles.offlineButton : styles.onlineButton,
+              ]}
+              onPress={toggleAvailability}
+            >
               <Text style={styles.buttonText}>
-                {isOnline ? 'Go Offline' : 'Go Online'}
+                {isOnline ? "Go Offline" : "Go Online"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -85,23 +129,23 @@ export default function Dashboard() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: "#f3f4f6",
   },
   scrollView: {
     flex: 1,
   },
   header: {
-    backgroundColor: '#f29f05',
+    backgroundColor: "#f29f05",
     padding: 20,
     paddingTop: 40,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
+        shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.25,
         shadowRadius: 3.84,
@@ -116,23 +160,23 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#ffffff',
+    fontWeight: "bold",
+    color: "#ffffff",
   },
   headerSubtitle: {
     fontSize: 16,
-    color: '#ffffff',
+    color: "#ffffff",
     marginTop: 5,
   },
   profileImageContainer: {
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#ffffff',
+    backgroundColor: "#ffffff",
     padding: 2,
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
+        shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.25,
         shadowRadius: 3.84,
@@ -143,19 +187,19 @@ const styles = StyleSheet.create({
     }),
   },
   profileImage: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
     borderRadius: 24,
   },
   statusCard: {
     margin: 16,
     marginTop: -20,
-    backgroundColor: '#ffffff',
+    backgroundColor: "#ffffff",
     borderRadius: 15,
     padding: 16,
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
+        shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.25,
         shadowRadius: 3.84,
@@ -166,13 +210,13 @@ const styles = StyleSheet.create({
     }),
   },
   statusRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   statusText: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   statusButton: {
     paddingVertical: 8,
@@ -180,32 +224,32 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   onlineButton: {
-    backgroundColor: '#f29f05',
+    backgroundColor: "#f29f05",
   },
   offlineButton: {
-    backgroundColor: '#ef4444',
+    backgroundColor: "#ef4444",
   },
   buttonText: {
-    color: '#ffffff',
-    fontWeight: '600',
+    color: "#ffffff",
+    fontWeight: "600",
   },
   statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     padding: 8,
   },
   statsItem: {
-    width: '50%',
+    width: "50%",
     padding: 8,
   },
   statsContent: {
-    backgroundColor: '#ffffff',
+    backgroundColor: "#ffffff",
     borderRadius: 15,
     padding: 16,
-    alignItems: 'center',
+    alignItems: "center",
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
+        shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.25,
         shadowRadius: 3.84,
@@ -217,11 +261,11 @@ const styles = StyleSheet.create({
   },
   statsNumber: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginTop: 8,
   },
   statsLabel: {
-    color: '#6b7280',
+    color: "#6b7280",
     marginTop: 4,
   },
-}); 
+});

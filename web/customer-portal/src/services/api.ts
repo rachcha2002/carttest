@@ -1,7 +1,7 @@
 import axios from "axios";
 
 // Define the base URL for the API - this should point to your API Gateway
-const API_URL = process.env.REACT_APP_API_URL || "http://localhost:3000";
+const API_URL = process.env.REACT_APP_API_URL || "http://localhost:3001";
 
 // Create an axios instance for API requests
 const api = axios.create({

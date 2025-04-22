@@ -38,6 +38,7 @@ module.exports = {
     },
   },
   plugins: [
-    require('@tailwindcss/forms'),
+    // Temporarily comment out the forms plugin to test if it's causing the issue
+    // require('@tailwindcss/forms'),
   ],
 } 

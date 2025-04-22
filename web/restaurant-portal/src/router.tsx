@@ -9,6 +9,7 @@ import Profile from "./pages/Profile";
 import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./contexts/AuthContext";
+import { NotificationProvider } from "./contexts/NotificationContext";
 import { Outlet } from "react-router-dom";
 
 const router = createBrowserRouter([
@@ -28,9 +29,9 @@ const router = createBrowserRouter([
     path: "/",
     element: (
       <ProtectedRoute>
-        <Layout>
-          <Outlet />
-        </Layout>
+        <NotificationProvider>
+          <Layout />
+        </NotificationProvider>
       </ProtectedRoute>
     ),
     children: [

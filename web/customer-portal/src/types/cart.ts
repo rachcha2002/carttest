@@ -40,7 +40,13 @@ export interface Order {
   id: string;
   items: CartItem[];
   restaurantId: string;
-  status: 'pending' | 'confirmed' | 'preparing' | 'out_for_delivery' | 'delivered' | 'cancelled';
+  status:
+    | "pending"
+    | "confirmed"
+    | "preparing"
+    | "out_for_delivery"
+    | "delivered"
+    | "cancelled";
   totalAmount: number;
   deliveryAddress: string;
   createdAt: string;
@@ -53,4 +59,4 @@ export interface Order {
       lng: number;
     };
   };
-} 
+}

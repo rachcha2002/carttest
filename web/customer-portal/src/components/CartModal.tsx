@@ -1,26 +1,65 @@
-import { Fragment } from 'react';
+import { Fragment, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Dialog, Transition } from '@headlessui/react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
-import { useSelector, useDispatch } from 'react-redux';
-import { RootState } from '../store/store';
-import { removeItem, updateQuantity } from '../features/cart/cartSlice';
+import { useDispatch } from 'react-redux';
+import { useCart } from '../hooks/useCart';
+import { addItem } from '../features/cart/cartSlice';
+import CartItems from './order/CartItems';
 
 interface CartModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+// Dummy food items data for initial cart population
+const dummyFoodItems = [
+  {
+    id: '1',
+    name: 'Chicken Burger',
+    price: 12.99,
+    restaurantId: 'rest1',
+    image: 'https://images.unsplash.com/photo-1571091718767-18b5b1457add?ixlib=rb-1.2.1&ixid=MnwxMjA3fDB8MHxzZWFyY2h8MTB8fGJ1cmdlcnxlbnwwfHwwfHw%3D&auto=format&fit=crop&w=500&q=60',
+  },
+  {
+    id: '3',
+    name: 'French Fries',
+    price: 4.99,
+    restaurantId: 'rest1',
+    image: 'https://images.unsplash.com/photo-1576107232684-1279f390859f?ixlib=rb-1.2.1&ixid=MnwxMjA3fDB8MHxzZWFyY2h8OXx8ZnJpZXN8ZW58MHx8MHx8&auto=format&fit=crop&w=500&q=60',
+  },
+];
+
 const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose }) => {
+  const navigate = useNavigate();
   const dispatch = useDispatch();
-  const cartItems = useSelector((state: RootState) => state.cart.items);
-  const total = useSelector((state: RootState) => state.cart.totalAmount);
+  const { items, totalAmount, isEmpty } = useCart();
 
-  const handleRemoveItem = (itemId: string) => {
-    dispatch(removeItem(itemId));
-  };
+  // Add dummy items to cart on initial load if cart is empty
+  useEffect(() => {
+    if (isEmpty && isOpen) {
+      // Add first two dummy items to cart
+      dispatch(addItem({ 
+        item: { ...dummyFoodItems[0], quantity: 1 }, 
+        restaurantId: dummyFoodItems[0].restaurantId 
+      }));
+      dispatch(addItem({ 
+        item: { ...dummyFoodItems[1], quantity: 2 }, 
+        restaurantId: dummyFoodItems[1].restaurantId 
+      }));
+    }
+  }, [dispatch, isEmpty, isOpen]);
 
-  const handleQuantityChange = (itemId: string, newQuantity: number) => {
-    dispatch(updateQuantity({ id: itemId, quantity: newQuantity }));
+  // Calculate tax and delivery fee
+  const tax = totalAmount * 0.08; // 8% tax
+  const deliveryFee = 2.99;
+  const orderTotal = totalAmount + tax + deliveryFee;
+
+  const handleCheckout = () => {
+    // Close the modal first
+    onClose();
+    // Navigate to order summary page
+    navigate('/order/summary');
   };
 
   return (
@@ -70,54 +109,7 @@ const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose }) => {
 
                       <div className="mt-8">
                         <div className="flow-root">
-                          <ul role="list" className="-my-6 divide-y divide-gray-200">
-                            {cartItems.map((item) => (
-                              <li key={item.id} className="flex py-6">
-                                <div className="h-24 w-24 flex-shrink-0 overflow-hidden rounded-md border border-gray-200">
-                                  <img
-                                    src={item.image}
-                                    alt={item.name}
-                                    className="h-full w-full object-cover object-center"
-                                  />
-                                </div>
-
-                                <div className="ml-4 flex flex-1 flex-col">
-                                  <div>
-                                    <div className="flex justify-between text-base font-medium text-gray-900 dark:text-white">
-                                      <h3>{item.name}</h3>
-                                      <p className="ml-4">${(item.price * item.quantity).toFixed(2)}</p>
-                                    </div>
-                                  </div>
-                                  <div className="flex flex-1 items-end justify-between text-sm">
-                                    <div className="flex items-center">
-                                      <button
-                                        onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
-                                        className="px-2 py-1 text-gray-500 hover:text-gray-700"
-                                      >
-                                        -
-                                      </button>
-                                      <span className="mx-2 text-gray-700 dark:text-gray-300">
-                                        {item.quantity}
-                                      </span>
-                                      <button
-                                        onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
-                                        className="px-2 py-1 text-gray-500 hover:text-gray-700"
-                                      >
-                                        +
-                                      </button>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleRemoveItem(item.id)}
-                                      className="font-medium text-primary hover:text-primary-dark"
-                                    >
-                                      Remove
-                                    </button>
-                                  </div>
-                                </div>
-                              </li>
-                            ))}
-                          </ul>
+                          <CartItems compact />
                         </div>
                       </div>
                     </div>
@@ -125,16 +117,25 @@ const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose }) => {
                     <div className="border-t border-gray-200 py-6 px-4 sm:px-6">
                       <div className="flex justify-between text-base font-medium text-gray-900 dark:text-white">
                         <p>Subtotal</p>
-                        <p>${total.toFixed(2)}</p>
+                        <p>${totalAmount.toFixed(2)}</p>
+                      </div>
+                      <div className="flex justify-between mt-1 text-sm text-gray-600 dark:text-gray-400">
+                        <p>Tax</p>
+                        <p>${tax.toFixed(2)}</p>
+                      </div>
+                      <div className="flex justify-between mt-1 text-sm text-gray-600 dark:text-gray-400">
+                        <p>Delivery Fee</p>
+                        <p>${deliveryFee.toFixed(2)}</p>
+                      </div>
+                      <div className="flex justify-between mt-2 pt-2 border-t border-gray-200 dark:border-gray-700 text-base font-medium text-gray-900 dark:text-white">
+                        <p>Total</p>
+                        <p>${orderTotal.toFixed(2)}</p>
                       </div>
                       <p className="mt-0.5 text-sm text-gray-500">Shipping and taxes calculated at checkout.</p>
                       <div className="mt-6">
                         <button
-                          className="w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-primary hover:bg-primary-dark"
-                          onClick={() => {
-                            // Handle checkout logic here
-                            console.log('Proceeding to checkout...');
-                          }}
+                          onClick={handleCheckout}
+                          className="w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-primary-600 hover:bg-primary-700"
                         >
                           Checkout
                         </button>

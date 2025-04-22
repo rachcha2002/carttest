@@ -11,8 +11,10 @@ const LoginPage = () => {
     password: "",
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleLogin = async () => {
+    if (!formData.email || !formData.password) {
+      return;
+    }
 
     const success = await login(formData.email, formData.password);
     if (success) {
@@ -35,7 +37,7 @@ const LoginPage = () => {
         Sign in to your account to continue
       </p>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="space-y-6">
         <div>
           <label
             htmlFor="email"
@@ -75,22 +77,22 @@ const LoginPage = () => {
         </div>
 
         <button
-          type="submit"
+          onClick={handleLogin}
           disabled={isLoading}
-          className={`w-full py-3 px-4 rounded-lg bg-primary text-white font-medium transition-colors ${
+          className={`w-full py-3 px-4 rounded-lg bg-primary text-white bg-[#f29f05] hover:bg-[#e69504] font-medium transition-colors ${
             isLoading ? "opacity-70 cursor-not-allowed" : "hover:bg-primary/90"
           }`}
         >
           {isLoading ? "Signing in..." : "Sign In"}
         </button>
-      </form>
+      </div>
 
       <div className="mt-6 text-center">
         <p className="text-gray-600 dark:text-gray-300">
           Don't have an account?{" "}
           <Link
             to="/register"
-            className="text-primary hover:text-primary/90 font-medium"
+            className="text-[#f29f05] hover:text-[#e69504] font-medium"
           >
             Sign up
           </Link>

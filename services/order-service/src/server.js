@@ -3,11 +3,38 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const dotenv = require('dotenv');
+const http = require('http');
+const { Server } = require('socket.io');
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: '*', // In production, restrict this to your frontend URLs
+    methods: ['GET', 'POST']
+  }
+});
+
+// Make io accessible across the application
+app.set('io', io);
+
+// Socket.IO connection handler
+io.on('connection', (socket) => {
+  console.log('Client connected:', socket.id);
+  
+  // Join restaurant-specific room when restaurant connects
+  socket.on('join-restaurant', (restaurantId) => {
+    console.log(`Restaurant ${restaurantId} joined`);
+    socket.join(`restaurant-${restaurantId}`);
+  });
+  
+  socket.on('disconnect', () => {
+    console.log('Client disconnected:', socket.id);
+  });
+});
 
 // Middleware
 app.use(cors());
@@ -19,11 +46,15 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
-// Routes will be added here
+// Import routes
+const orderRoutes = require('./routes/order.routes');
+
+// Register routes
+app.use('/api/orders', orderRoutes);
 
 // Start the server
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`${process.env.SERVICE_NAME || 'Service'} running on port ${PORT}`);
 });
 
@@ -40,4 +71,4 @@ const connectDB = async () => {
 
 connectDB();
 
-module.exports = app; // For testing
+module.exports = { app, io }; // Export both app and io for testing
