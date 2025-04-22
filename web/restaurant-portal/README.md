@@ -42,10 +42,16 @@ A modern web application for restaurant management, built with React and TypeScr
 3. Create a `.env` file in the root directory:
    ```env
    REACT_APP_API_URL=http://localhost:3001/api
-   REACT_APP_NAME=Restaurant Portal
+   REACT_APP_ORDER_SERVICE_URL=http://localhost:5003/api
+   REACT_APP_SOCKET_URL=http://localhost:5003
    ```
 
-4. Start the development server:
+4. Add a notification sound file:
+   - Download an MP3 notification sound file
+   - Save it as `notification.mp3` in the `public/` directory
+   - This sound will be used for new order notifications
+
+5. Start the development server:
    ```bash
    npm start
    ```
@@ -83,6 +89,8 @@ src/
 ## Environment Variables
 
 - `REACT_APP_API_URL` - Backend API URL
+- `REACT_APP_ORDER_SERVICE_URL` - Order service API URL
+- `REACT_APP_SOCKET_URL` - WebSocket URL
 - `REACT_APP_NAME` - Application name
 
 ## Contributing

@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import { Link, Outlet } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import NotificationBell from "./NotificationBell";
 
-const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+const Layout: React.FC = () => {
   const { logout } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -66,6 +67,10 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             </div>
             <div className="hidden md:block">
               <div className="ml-4 flex items-center md:ml-6">
+                <div className="mr-4">
+                  <NotificationBell />
+                </div>
+                
                 <button
                   onClick={logout}
                   className="bg-gray-800 p-1 rounded-full text-gray-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white"
@@ -161,6 +166,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             >
               Profile
             </Link>
+            <div className="px-3 py-2">
+              <NotificationBell />
+            </div>
             <button
               onClick={logout}
               className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:bg-gray-700 hover:text-white"

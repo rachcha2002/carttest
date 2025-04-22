@@ -3,13 +3,18 @@ import axios from "axios";
 import { toast } from "react-hot-toast";
 
 // API base URL
-const API_URL = "http://localhost:3000/api";
+const API_URL = "http://localhost:3001/api";
 
 interface User {
   id: string;
   name: string;
   email: string;
-  phoneNumber?: string;
+  phoneNumber: string;
+  address: string;
+  role: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface AuthContextType {
@@ -23,12 +28,14 @@ interface AuthContextType {
     name: string,
     email: string,
     password: string,
-    phoneNumber: string
+    phoneNumber: string,
+    address: string
   ) => Promise<boolean>;
   logout: () => void;
   updateProfile: (userData: Partial<User>) => Promise<boolean>;
   refreshToken: () => Promise<boolean>;
   sessionTimeRemaining: number | null;
+  setUser: (user: User | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -120,7 +127,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     name: string,
     email: string,
     password: string,
-    phoneNumber: string
+    phoneNumber: string,
+    address: string
   ): Promise<boolean> => {
     setIsLoading(true);
     setError(null);
@@ -131,6 +139,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         email,
         password,
         phoneNumber,
+        address,
         role: "customer",
       });
 
@@ -216,6 +225,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         updateProfile,
         refreshToken,
         sessionTimeRemaining,
+        setUser,
       }}
     >
       {children}

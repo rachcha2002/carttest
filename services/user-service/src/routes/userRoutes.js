@@ -14,6 +14,13 @@ router.get("/", auth, isAdmin, userController.getAllUsers);
 router.patch("/:id/status", auth, isAdmin, userController.updateUserStatus);
 router.patch("/:id/verify", auth, isAdmin, userController.verifyUser);
 router.delete("/:id", auth, isAdmin, userController.deleteUser);
+router.post(
+  "/:id/reset-password",
+  auth,
+  isAdmin,
+  userController.resetUserPassword
+);
+router.post("/admin", auth, isAdmin, userController.createAdmin);
 
 // User routes (admin or self)
 router.get("/:id", auth, userController.getUserById);
@@ -83,6 +90,25 @@ router.get(
   auth,
   checkRole(["admin", "restaurant"]),
   userController.getAvailableDeliveryPersonnel
+);
+
+// Profile picture update route (for all users)
+router.patch("/profile-picture", auth, userController.updateProfilePicture);
+
+// Delivery document routes (for delivery personnel)
+router.patch(
+  "/delivery/documents",
+  auth,
+  isDelivery,
+  userController.updateDeliveryDocuments
+);
+
+// Admin route to verify delivery documents
+router.patch(
+  "/:id/delivery/documents/:documentType/verify",
+  auth,
+  isAdmin,
+  userController.verifyDeliveryDocument
 );
 
 // User routes

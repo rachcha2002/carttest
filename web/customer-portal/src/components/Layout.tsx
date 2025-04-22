@@ -1,23 +1,34 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { useTheme } from "../contexts/ThemeContext";
 import { useAuth } from "../contexts/AuthContext";
-import { useCart } from "../contexts/CartContext";
+import { useCart } from "../hooks/useCart";
 import { motion, AnimatePresence } from "framer-motion";
 import SessionTimer from "./SessionTimer";
+import CartModal from "./CartModal";
 
 const Layout: React.FC = () => {
   const { isDarkMode, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
-  const { itemCount } = useCart();
+  const { items } = useCart();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isCartOpen, setIsCartOpen] = useState(false);
   const location = useLocation();
 
-  const navItems = [
-    { label: "Home", path: "/" },
-    { label: "About", path: "/about" },
-    { label: "Contact", path: "/contact" },
-  ];
+  const navItems = useMemo(() => {
+    const items = [
+      { label: "Home", path: "/" },
+      { label: "About", path: "/about" },
+      { label: "Contact", path: "/contact" },
+    ];
+    
+    // Add "My Orders" only for authenticated users
+    if (user) {
+      items.push({ label: "My Orders", path: "/orders" });
+    }
+    
+    return items;
+  }, [user]);
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -74,17 +85,18 @@ const Layout: React.FC = () => {
                 {isDarkMode ? "🌞" : "🌙"}
               </button>
               {/* Cart */}
-              <Link
-                to="/cart"
+              <button
+                onClick={() => setIsCartOpen(true)}
                 className="ml-4 relative p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                aria-label="Shopping cart"
               >
                 🛒
-                {itemCount > 0 && (
+                {items.length > 0 && (
                   <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-red-600 rounded-full">
-                    {itemCount}
+                    {items.length}
                   </span>
                 )}
-              </Link>
+              </button>
 
               {/* Auth Buttons */}
               <div className="hidden md:flex md:items-center md:ml-4">
@@ -202,6 +214,13 @@ const Layout: React.FC = () => {
                     >
                       Profile
                     </Link>
+                    <Link
+                      to="/orders"
+                      className="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      My Orders
+                    </Link>
                     <button
                       onClick={() => {
                         logout();
@@ -226,6 +245,9 @@ const Layout: React.FC = () => {
 
       {/* Add the session timer */}
       <SessionTimer />
+
+      {/* Cart Modal */}
+      <CartModal isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
 
       {/* Footer */}
       <footer

@@ -13,6 +13,7 @@ const RegisterPage = () => {
     password: "",
     confirmPassword: "",
     phoneNumber: "",
+    address: "",
   });
 
   // Form validation state
@@ -22,6 +23,7 @@ const RegisterPage = () => {
     password: "",
     confirmPassword: "",
     phoneNumber: "",
+    address: "",
   });
 
   const validateForm = () => {
@@ -32,6 +34,7 @@ const RegisterPage = () => {
       password: "",
       confirmPassword: "",
       phoneNumber: "",
+      address: "",
     };
 
     // Validate name
@@ -59,6 +62,12 @@ const RegisterPage = () => {
       isValid = false;
     }
 
+    // Validate address
+    if (!formData.address.trim()) {
+      errors.address = "Address is required";
+      isValid = false;
+    }
+
     // Validate password
     if (!formData.password) {
       errors.password = "Password is required";
@@ -78,9 +87,7 @@ const RegisterPage = () => {
     return isValid;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
+  const handleRegister = async () => {
     // Validate form before submission
     if (!validateForm()) {
       return;
@@ -92,7 +99,8 @@ const RegisterPage = () => {
         formData.name,
         formData.email,
         formData.password,
-        formData.phoneNumber
+        formData.phoneNumber,
+        formData.address
       );
 
       if (success) {
@@ -131,7 +139,7 @@ const RegisterPage = () => {
         Join us to start ordering your favorite food
       </p>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="space-y-6">
         {/* Name field */}
         <div>
           <label
@@ -216,6 +224,32 @@ const RegisterPage = () => {
           )}
         </div>
 
+        {/* Address field */}
+        <div>
+          <label
+            htmlFor="address"
+            className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2"
+          >
+            Address
+          </label>
+          <input
+            type="text"
+            id="address"
+            name="address"
+            value={formData.address}
+            onChange={handleChange}
+            className={`w-full px-4 py-2 rounded-lg border ${
+              formErrors.address
+                ? "border-red-500 focus:ring-red-500"
+                : "border-gray-300 dark:border-gray-600 focus:ring-primary"
+            } focus:outline-none focus:ring-2 dark:bg-gray-700 dark:text-white`}
+            placeholder="Enter your delivery address"
+          />
+          {formErrors.address && (
+            <p className="mt-1 text-sm text-red-500">{formErrors.address}</p>
+          )}
+        </div>
+
         {/* Password fields */}
         <div>
           <label
@@ -270,22 +304,22 @@ const RegisterPage = () => {
         </div>
 
         <button
-          type="submit"
+          onClick={handleRegister}
           disabled={isLoading}
-          className={`w-full py-3 px-4 rounded-lg bg-primary text-white font-medium transition-colors ${
+          className={`w-full py-3 px-4 rounded-lg bg-primary text-white bg-[#f29f05] hover:bg-[#e69504] font-medium transition-colors ${
             isLoading ? "opacity-70 cursor-not-allowed" : "hover:bg-primary/90"
           }`}
         >
           {isLoading ? "Creating Account..." : "Create Account"}
         </button>
-      </form>
+      </div>
 
       <div className="mt-6 text-center">
         <p className="text-gray-600 dark:text-gray-300">
           Already have an account?{" "}
           <Link
             to="/login"
-            className="text-primary hover:text-primary/90 font-medium"
+            className="text-[#f29f05] hover:text-[#e69504] font-medium"
           >
             Sign in
           </Link>

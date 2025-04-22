@@ -672,6 +672,238 @@ const getCurrentUser = async (req, res) => {
   }
 };
 
+/**
+ * Update user profile picture
+ * @route PATCH /api/users/profile-picture
+ * @access Private
+ */
+const updateProfilePicture = async (req, res) => {
+  try {
+    const { url } = req.body;
+
+    if (!url) {
+      return res
+        .status(400)
+        .json({ message: "Profile picture URL is required" });
+    }
+
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    user.profilePicture = url;
+    user.updatedAt = Date.now();
+
+    await user.save();
+
+    res.json({
+      message: "Profile picture updated successfully",
+      profilePicture: user.profilePicture,
+    });
+  } catch (error) {
+    console.error("Update profile picture error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+/**
+ * Update delivery documents
+ * @route PATCH /api/users/delivery/documents
+ * @access Private/Delivery
+ */
+const updateDeliveryDocuments = async (req, res) => {
+  try {
+    const { documentType, url } = req.body;
+
+    if (!documentType || !url) {
+      return res.status(400).json({
+        message: "Document type and URL are required",
+      });
+    }
+
+    if (
+      !["driverLicense", "vehicleRegistration", "insurance"].includes(
+        documentType
+      )
+    ) {
+      return res.status(400).json({
+        message:
+          "Invalid document type. Must be driverLicense, vehicleRegistration, or insurance",
+      });
+    }
+
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (user.role !== "delivery") {
+      return res.status(403).json({
+        message: "Only delivery personnel can update delivery documents",
+      });
+    }
+
+    if (!user.deliveryInfo) {
+      user.deliveryInfo = {};
+    }
+
+    if (!user.deliveryInfo.documents) {
+      user.deliveryInfo.documents = {};
+    }
+
+    user.deliveryInfo.documents[documentType] = {
+      url,
+      verified: false,
+      uploadedAt: Date.now(),
+    };
+
+    user.updatedAt = Date.now();
+    await user.save();
+
+    res.json({
+      message: `${documentType} document updated successfully`,
+      document: user.deliveryInfo.documents[documentType],
+    });
+  } catch (error) {
+    console.error("Update delivery documents error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+/**
+ * Verify delivery document (admin only)
+ * @route PATCH /api/users/:id/delivery/documents/:documentType/verify
+ * @access Private/Admin
+ */
+const verifyDeliveryDocument = async (req, res) => {
+  try {
+    const { id, documentType } = req.params;
+    const { verified } = req.body;
+
+    if (
+      !["driverLicense", "vehicleRegistration", "insurance"].includes(
+        documentType
+      )
+    ) {
+      return res.status(400).json({
+        message:
+          "Invalid document type. Must be driverLicense, vehicleRegistration, or insurance",
+      });
+    }
+
+    const user = await User.findById(id);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (user.role !== "delivery") {
+      return res
+        .status(400)
+        .json({ message: "User is not a delivery personnel" });
+    }
+
+    if (
+      !user.deliveryInfo ||
+      !user.deliveryInfo.documents ||
+      !user.deliveryInfo.documents[documentType]
+    ) {
+      return res
+        .status(404)
+        .json({ message: `${documentType} document not found` });
+    }
+
+    user.deliveryInfo.documents[documentType].verified = verified;
+    user.updatedAt = Date.now();
+
+    await user.save();
+
+    res.json({
+      message: `${documentType} document verification status updated`,
+      document: user.deliveryInfo.documents[documentType],
+    });
+  } catch (error) {
+    console.error("Verify delivery document error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+/**
+ * Reset user password (admin only)
+ * @route POST /api/users/:id/reset-password
+ * @access Private/Admin
+ */
+const resetUserPassword = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await User.findById(id);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Generate a random password
+    const newPassword = Math.random().toString(36).slice(-8);
+
+    // Update user's password
+    user.password = newPassword;
+    user.updatedAt = Date.now();
+    await user.save();
+
+    // TODO: Send email with new password
+    // For now, we'll just return the new password
+    // In production, this should be sent via email
+    res.json({
+      message: "Password reset successful",
+      newPassword: newPassword, // Remove this in production
+    });
+  } catch (error) {
+    console.error("Reset password error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+/**
+ * Create new admin user (admin only)
+ * @route POST /api/users/admin
+ * @access Private/Admin
+ */
+const createAdmin = async (req, res) => {
+  try {
+    const { name, email, password, phoneNumber } = req.body;
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: "User already exists" });
+    }
+
+    // Create new admin user
+    const admin = new User({
+      name,
+      email,
+      password,
+      phoneNumber,
+      role: "admin",
+      isVerified: true,
+      status: "active",
+    });
+
+    await admin.save();
+
+    res.status(201).json({
+      message: "Admin user created successfully",
+      user: admin.toJSON(),
+    });
+  } catch (error) {
+    console.error("Create admin error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
 module.exports = {
   getAllUsers,
   getUserById,
@@ -691,4 +923,9 @@ module.exports = {
   updateDefaultLocation,
   removeDefaultLocation,
   getCurrentUser,
+  updateProfilePicture,
+  updateDeliveryDocuments,
+  verifyDeliveryDocument,
+  resetUserPassword,
+  createAdmin,
 };
