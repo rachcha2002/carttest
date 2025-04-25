@@ -44,6 +44,8 @@ interface User {
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
+  isInitialized: boolean;
+  isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   getCurrentUser: () => Promise<void>;
@@ -60,46 +62,54 @@ export const useAuth = () => {
   return context;
 };
 
+// Simple storage helper
+const storage = {
+  get: (key: string) => {
+    const item = sessionStorage.getItem(key);
+    return item ? JSON.parse(item) : null;
+  },
+  set: (key: string, value: any) => {
+    sessionStorage.setItem(key, JSON.stringify(value));
+  },
+  remove: (key: string) => {
+    sessionStorage.removeItem(key);
+  },
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // Initialize state directly from storage
+  const [user, setUser] = useState<User | null>(storage.get("adminUser"));
+  const [isAuthenticated, setIsAuthenticated] = useState(
+    !!storage.get("adminToken")
+  );
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Set up axios interceptors
   useEffect(() => {
     const requestInterceptor = axios.interceptors.request.use(
       (config) => {
-        const token = localStorage.getItem("adminToken");
+        const token = storage.get("adminToken");
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
         }
         return config;
       },
-      (error) => {
-        return Promise.reject(error);
-      }
+      (error) => Promise.reject(error)
     );
 
     const responseInterceptor = axios.interceptors.response.use(
       (response) => response,
       async (error) => {
-        const originalRequest = error.config;
-
-        // If the error is 401 and we haven't tried to refresh the token yet
-        if (error.response?.status === 401 && !originalRequest._retry) {
-          originalRequest._retry = true;
-
+        if (error.response?.status === 401) {
           try {
             await refreshToken();
-            // Retry the original request with the new token
-            originalRequest.headers.Authorization = `Bearer ${localStorage.getItem(
-              "adminToken"
-            )}`;
-            return axios(originalRequest);
+            const token = storage.get("adminToken");
+            error.config.headers.Authorization = `Bearer ${token}`;
+            return axios(error.config);
           } catch (refreshError) {
-            // If refresh token fails, logout the user
             await logout();
             return Promise.reject(refreshError);
           }
@@ -116,110 +126,80 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const getCurrentUser = useCallback(async () => {
     try {
-      const token = localStorage.getItem("adminToken");
-      if (!token) {
-        throw new Error("No token found");
-      }
+      const token = storage.get("adminToken");
+      if (!token) throw new Error("No token found");
 
       const response = await axios.get(api.endpoints.auth.me, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
-      setUser(response.data);
-      setIsAuthenticated(true);
-    } catch (error) {
-      console.error("Error in getCurrentUser:", error);
-      if (axios.isAxiosError(error) && error.response?.status === 401) {
-        try {
-          await refreshToken();
-          await getCurrentUser();
-        } catch (refreshError) {
-          console.error("Refresh token error:", refreshError);
-          throw refreshError;
-        }
-      } else {
-        throw error;
+      if (response.data) {
+        setUser(response.data);
+        storage.set("adminUser", response.data);
+        setIsAuthenticated(true);
       }
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      throw error;
     }
   }, []);
 
   const refreshToken = async () => {
     try {
-      const refreshToken = localStorage.getItem("refreshToken");
-      if (!refreshToken) {
-        throw new Error("No refresh token found");
-      }
+      const refreshToken = storage.get("refreshToken");
+      if (!refreshToken) throw new Error("No refresh token found");
 
-      const response = await axios.post(
-        api.endpoints.auth.refreshToken,
-        {
-          refreshToken,
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      const response = await axios.post(api.endpoints.auth.refreshToken, {
+        refreshToken,
+      });
 
       if (response.data.token) {
-        localStorage.setItem("adminToken", response.data.token);
-        localStorage.setItem("refreshToken", response.data.refreshToken);
+        storage.set("adminToken", response.data.token);
+        storage.set("refreshToken", response.data.refreshToken);
         return response.data.token;
-      } else {
-        throw new Error("No token in response");
       }
+      throw new Error("No token in response");
     } catch (error) {
-      console.error("Refresh token error:", error);
-      localStorage.removeItem("adminToken");
-      localStorage.removeItem("refreshToken");
-      setIsAuthenticated(false);
+      console.error("Error refreshing token:", error);
+      await logout();
       throw error;
     }
   };
 
   // Initialize auth state
   useEffect(() => {
-    const initializeAuth = async () => {
+    const init = async () => {
       try {
-        const token = localStorage.getItem("adminToken");
+        const token = storage.get("adminToken");
         if (token) {
           await getCurrentUser();
         }
       } catch (error) {
-        console.error("Initial auth check error:", error);
-        localStorage.removeItem("adminToken");
-        localStorage.removeItem("refreshToken");
+        console.error("Initialization error:", error);
+        storage.remove("adminToken");
+        storage.remove("refreshToken");
+        storage.remove("adminUser");
+        setUser(null);
         setIsAuthenticated(false);
       } finally {
         setIsInitialized(true);
       }
     };
 
-    initializeAuth();
+    init();
   }, [getCurrentUser]);
 
   const login = async (email: string, password: string) => {
     try {
-      const response = await axios.post(
-        api.endpoints.auth.login,
-        {
-          email,
-          password,
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      const response = await axios.post(api.endpoints.auth.login, {
+        email,
+        password,
+      });
 
       if (response.data.token) {
-        localStorage.setItem("adminToken", response.data.token);
-        localStorage.setItem("refreshToken", response.data.refreshToken);
+        storage.set("adminToken", response.data.token);
+        storage.set("refreshToken", response.data.refreshToken);
+        storage.set("adminUser", response.data.user);
         setUser(response.data.user);
         setIsAuthenticated(true);
       } else {
@@ -233,26 +213,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const logout = async () => {
     try {
-      const token = localStorage.getItem("adminToken");
+      const token = storage.get("adminToken");
       if (token) {
         await axios.post(api.endpoints.auth.logout, null, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
+          headers: { Authorization: `Bearer ${token}` },
         });
       }
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
-      localStorage.removeItem("adminToken");
-      localStorage.removeItem("refreshToken");
+      storage.remove("adminToken");
+      storage.remove("refreshToken");
+      storage.remove("adminUser");
       setUser(null);
       setIsAuthenticated(false);
     }
   };
 
-  // Don't render children until auth state is initialized
   if (!isInitialized) {
     return <div>Loading...</div>;
   }
@@ -262,6 +239,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       value={{
         user,
         isAuthenticated,
+        isInitialized,
+        isLoading,
         login,
         logout,
         getCurrentUser,

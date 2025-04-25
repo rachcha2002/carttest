@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import Header from "./Header";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -10,7 +11,7 @@ const Layout = ({ children }: LayoutProps) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, isInitialized } = useAuth();
 
   const navigation = [
     { name: "Dashboard", path: "/dashboard", icon: "📊" },
@@ -25,6 +26,10 @@ const Layout = ({ children }: LayoutProps) => {
     await logout();
     navigate("/login");
   };
+
+  if (!isInitialized) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <div className="flex h-screen bg-gray-100">
@@ -68,31 +73,7 @@ const Layout = ({ children }: LayoutProps) => {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Navigation */}
-        <header className="bg-white shadow-sm">
-          <div className="flex items-center justify-between p-4">
-            <div className="flex items-center space-x-4">
-              <h2 className="text-lg font-semibold text-gray-800">
-                {navigation.find((item) => item.path === location.pathname)
-                  ?.name || "Dashboard"}
-              </h2>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-600">
-                  {user?.name || "Admin"}
-                </span>
-                <button
-                  onClick={handleLogout}
-                  className="text-sm text-[#f29f05] hover:text-[#d88f04]"
-                >
-                  Logout
-                </button>
-              </div>
-            </div>
-          </div>
-        </header>
-
+        <Header />
         {/* Page Content */}
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
       </div>
