@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   ArrowLeftIcon, 
@@ -10,79 +10,197 @@ import {
   ChatBubbleLeftIcon, 
   CreditCardIcon
 } from '@heroicons/react/24/outline';
+import orderService from '../../services/orderService';
+import { toast } from 'react-hot-toast';
+import { useNotifications } from '../../contexts/NotificationContext';
 
-// This would typically come from an API call
-// For now, we'll display some dummy data
-const dummyOrderDetails = {
-  id: 'ORD-12345',
-  restaurantName: 'Tasty Bites',
-  restaurantAddress: '789 Oak Street, New York, NY 10002',
-  restaurantPhone: '+1 (555) 987-6543',
-  date: 'June 15, 2023 - 7:30 PM',
-  status: 'delivered',
-  items: [
-    { name: 'Margherita Pizza', quantity: 1, price: 12.99, notes: 'Extra cheese' },
-    { name: 'Garlic Bread', quantity: 1, price: 4.99, notes: '' },
-    { name: 'Coca-Cola', quantity: 2, price: 2.99, notes: 'No ice' },
-  ],
-  subtotal: 23.96,
-  deliveryFee: 3.99,
-  tax: 2.40,
-  total: 30.35,
-  paymentMethod: 'Credit Card (•••• 4242)',
-  deliveryAddress: '123 Main St, Apt 4B, New York, NY 10001',
-  deliveryInstructions: 'Please leave at the door',
-  driver: {
-    name: 'John Smith',
-    phone: '+1 (555) 123-4567',
-    rating: 4.8,
-    vehicleInfo: 'Honda Civic (Black) - XYZ 123'
-  },
-  deliveryTimeline: [
-    { status: 'Order Received', time: '7:30 PM', description: 'Your order has been received by the restaurant.' },
-    { status: 'Preparing Your Order', time: '7:35 PM', description: 'The restaurant is preparing your delicious food.' },
-    { status: 'Wrapping Up', time: '7:45 PM', description: 'Your food is being packaged for delivery.' },
-    { status: 'Picking Up', time: '8:00 PM', description: 'Driver is at the restaurant to pick up your order.' },
-    { status: 'Heading Your Way', time: '8:15 PM', description: 'Your order is on the way to your location.' },
-    { status: 'Delivered', time: '8:45 PM', description: 'Your order has been delivered. Enjoy your meal!' },
-  ],
-};
+interface OrderItem {
+  name: string;
+  quantity: number;
+  price: number;
+  notes?: string;
+}
+
+interface DeliveryTimelineItem {
+  status: string;
+  time: string;
+  description: string;
+}
+
+interface OrderDetails {
+  id: string;
+  orderId: string;
+  restaurantName: string;
+  restaurantAddress: string;
+  restaurantPhone: string;
+  date: string;
+  status: string;
+  items: OrderItem[];
+  subtotal: number;
+  deliveryFee: number;
+  tax: number;
+  total: number;
+  paymentMethod: string;
+  deliveryAddress: string;
+  deliveryInstructions: string;
+  driver?: {
+    name: string;
+    phone: string;
+    rating: number;
+    vehicleInfo: string;
+  };
+  deliveryTimeline: DeliveryTimelineItem[];
+  createdAt: string;
+}
 
 const OrderDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'details' | 'timeline'>('details');
+  const [orderDetails, setOrderDetails] = useState<OrderDetails | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const { socket, notifications } = useNotifications();
+  const [socketConnected, setSocketConnected] = useState<boolean>(false);
   
-  // In a real app, you would fetch the order details based on the id
-  const orderDetails = dummyOrderDetails;
+  useEffect(() => {
+    if (!socket) return;
+    
+    setSocketConnected(socket.connected);
+    
+    const handleConnect = () => {
+      setSocketConnected(true);
+    };
+    
+    const handleDisconnect = () => {
+      setSocketConnected(false);
+    };
+    
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
+    
+    return () => {
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
+    };
+  }, [socket]);
+  
+  useEffect(() => {
+    if (!socket || !id) return;
+    
+    const handleOrderStatusUpdate = (data: any) => {
+      if (data.orderId === id) {
+        fetchOrderDetails(id);
+      }
+    };
+    
+    socket.on('order-status-update', handleOrderStatusUpdate);
+    
+    return () => {
+      socket.off('order-status-update', handleOrderStatusUpdate);
+    };
+  }, [socket, id]);
+  
+  const fetchOrderDetails = async (orderId: string) => {
+    if (!orderId) {
+      setError('Order ID is missing');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await orderService.getOrder(orderId);
+      
+      if (response.success && response.data) {
+        const orderData = response.data;
+        
+        const formattedOrder: OrderDetails = {
+          id: orderData._id,
+          orderId: orderData.orderId,
+          restaurantName: orderData.restaurant?.restaurantInfo?.restaurantName || 'Unknown Restaurant',
+          restaurantAddress: orderData.restaurant?.address || 'Address not available',
+          restaurantPhone: orderData.restaurant?.phoneNumber || 'Phone not available',
+          date: new Date(orderData.createdAt).toLocaleString(),
+          status: orderData.status,
+          items: orderData.foods.map((food: any) => ({
+            name: food.name,
+            quantity: food.quantity,
+            price: food.price,
+            notes: food.notes || ''
+          })),
+          subtotal: orderData.subtotal,
+          deliveryFee: orderData.deliveryFee,
+          tax: orderData.tax,
+          total: orderData.total,
+          paymentMethod: `${orderData.paymentMethod || 'Card'} (${orderData.paymentId})`,
+          deliveryAddress: orderData.deliveryAddress || 'Address not available',
+          deliveryInstructions: orderData.deliveryInstructions || 'No specific instructions',
+          driver: orderData.driver ? {
+            name: orderData.driver.name || 'Not assigned yet',
+            phone: orderData.driver.phoneNumber || 'Not available',
+            rating: orderData.driver.rating || 0,
+            vehicleInfo: orderData.driver.vehicleInfo || 'Not available'
+          } : undefined,
+          deliveryTimeline: orderData.deliveryTimeline.map((item: any) => ({
+            status: formatStatus(item.status),
+            time: new Date(item.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            description: item.description
+          })),
+          createdAt: orderData.createdAt
+        };
+        
+        setOrderDetails(formattedOrder);
+      } else {
+        setError('Failed to fetch order details');
+        toast.error('Failed to load order details');
+      }
+    } catch (err) {
+      console.error('Error fetching order details:', err);
+      setError('Error loading order details');
+      toast.error('Error loading order details');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOrderDetails(id || '');
+  }, [id]);
+
+  const formatStatus = (status: string): string => {
+    return status
+      .split('-')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
 
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Order Received':
+    switch (status.toLowerCase()) {
+      case 'order received':
         return 'bg-blue-100 text-blue-800';
-      case 'Preparing Your Order':
+      case 'preparing your order':
         return 'bg-yellow-100 text-yellow-800';
-      case 'Wrapping Up':
+      case 'wrapping up':
         return 'bg-indigo-100 text-indigo-800';
-      case 'Picking Up':
+      case 'picking up':
         return 'bg-purple-100 text-purple-800';
-      case 'Heading Your Way':
+      case 'heading your way':
         return 'bg-orange-100 text-orange-800';
-      case 'Delivered':
+      case 'delivered':
         return 'bg-green-100 text-green-800';
-      case 'Cancelled':
+      case 'cancelled':
         return 'bg-red-100 text-red-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
   };
 
-  // Get restaurant initial for the logo placeholder
   const getRestaurantInitial = () => {
-    if (!orderDetails.restaurantName) return '?';
+    if (!orderDetails?.restaurantName) return '?';
     return orderDetails.restaurantName.charAt(0).toUpperCase();
   };
 
-  // Generate a background color based on restaurant name
   const getRestaurantColor = () => {
     const colors = [
       'bg-blue-500',
@@ -94,9 +212,54 @@ const OrderDetailPage: React.FC = () => {
       'bg-pink-500',
       'bg-teal-500'
     ];
+    if (!orderDetails?.restaurantName) return colors[0];
     const index = orderDetails.restaurantName.length % colors.length;
     return colors[index];
   };
+
+  const StatusIndicator = () => (
+    <div className="mb-4 flex items-center">
+      <div className={`w-3 h-3 rounded-full mr-2 ${socketConnected ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+      <span className="text-xs text-gray-500 dark:text-gray-400">
+        {socketConnected ? 'Live updates active' : 'Offline mode'}
+      </span>
+    </div>
+  );
+
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-8 max-w-3xl">
+        <div className="flex flex-col items-center justify-center h-64">
+          <div className="w-16 h-16 border-t-4 border-b-4 border-blue-500 rounded-full animate-spin mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Loading order details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !orderDetails) {
+    return (
+      <div className="container mx-auto px-4 py-8 max-w-3xl">
+        <div className="bg-red-50 dark:bg-red-900/20 p-6 rounded-lg text-center">
+          <p className="text-red-600 dark:text-red-400 mb-4">{error || 'Failed to load order details'}</p>
+          <div className="flex justify-center space-x-4">
+            <button 
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+            >
+              Try Again
+            </button>
+            <button 
+              onClick={() => navigate('/orders')}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+            >
+              Back to Orders
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <motion.div
@@ -125,16 +288,16 @@ const OrderDetailPage: React.FC = () => {
                   <h2 className="text-2xl font-bold dark:text-white">{orderDetails.restaurantName}</h2>
                   <p className="text-sm text-gray-500 dark:text-gray-400">{orderDetails.date}</p>
                 </div>
-                <div className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(orderDetails.status === 'delivered' ? 'Delivered' : 'Order Received')}`}>
-                  {orderDetails.status === 'delivered' ? 'Delivered' : 'Order Received'}
+                <div className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(formatStatus(orderDetails.status))}`}>
+                  {formatStatus(orderDetails.status)}
                 </div>
               </div>
-              <p className="text-gray-600 dark:text-gray-400 mt-2">Order #{orderDetails.id}</p>
+              <p className="text-gray-600 dark:text-gray-400 mt-2">Order #{orderDetails.orderId}</p>
+              <StatusIndicator />
             </div>
           </div>
         </div>
 
-        {/* Tab Navigation */}
         <div className="flex border-b border-gray-200 dark:border-gray-700 mb-6">
           <button
             onClick={() => setActiveTab('details')}
@@ -158,10 +321,8 @@ const OrderDetailPage: React.FC = () => {
           </button>
         </div>
 
-        {/* Content based on active tab */}
         {activeTab === 'details' ? (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md">
-            {/* Items Section */}
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <h3 className="text-lg font-semibold mb-4 dark:text-white">Order Items</h3>
               <div className="space-y-4">
@@ -186,7 +347,6 @@ const OrderDetailPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Payment Summary */}
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <h3 className="text-lg font-semibold mb-4 dark:text-white">Payment Summary</h3>
               <div className="space-y-2">
@@ -213,7 +373,6 @@ const OrderDetailPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Delivery Information */}
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <h3 className="text-lg font-semibold mb-4 dark:text-white">Delivery Information</h3>
               <div className="space-y-4">
@@ -236,7 +395,6 @@ const OrderDetailPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Restaurant Information */}
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <h3 className="text-lg font-semibold mb-4 dark:text-white">Restaurant Information</h3>
               <div className="space-y-4">
@@ -257,81 +415,61 @@ const OrderDetailPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Driver Information */}
-            <div className="p-6">
-              <h3 className="text-lg font-semibold mb-4 dark:text-white">Delivery Driver</h3>
-              <div className="space-y-4">
-                <div className="flex items-center">
-                  <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center text-gray-600 dark:text-gray-300 mr-3">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="font-medium dark:text-white">{orderDetails.driver.name}</p>
-                    <div className="flex items-center">
-                      <div className="flex">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <svg 
-                            key={star}
-                            xmlns="http://www.w3.org/2000/svg" 
-                            className={`h-4 w-4 ${star <= orderDetails.driver.rating ? 'text-yellow-400' : 'text-gray-300'}`} 
-                            viewBox="0 0 20 20" 
-                            fill="currentColor"
-                          >
-                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                          </svg>
-                        ))}
+            {orderDetails.driver && (
+              <div className="p-6">
+                <h3 className="text-lg font-semibold mb-4 dark:text-white">Driver Information</h3>
+                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                  <div className="flex items-center mb-2">
+                    <div className="h-10 w-10 rounded-full bg-blue-200 flex items-center justify-center mr-3">
+                      <TruckIcon className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="font-medium dark:text-blue-300">{orderDetails.driver.name}</p>
+                      <div className="flex items-center text-sm text-blue-600 dark:text-blue-400">
+                        <span className="mr-2">Rating: {orderDetails.driver.rating}</span>
+                        <span>{orderDetails.driver.vehicleInfo}</span>
                       </div>
-                      <span className="text-gray-600 dark:text-gray-400 text-sm ml-1">{orderDetails.driver.rating}</span>
                     </div>
                   </div>
-                </div>
-                <div className="flex">
-                  <TruckIcon className="h-5 w-5 text-gray-500 dark:text-gray-400 mr-2 flex-shrink-0" />
-                  <div>
-                    <p className="font-medium dark:text-white">Vehicle Information</p>
-                    <p className="text-gray-600 dark:text-gray-400">{orderDetails.driver.vehicleInfo}</p>
-                  </div>
-                </div>
-                <div className="flex">
-                  <PhoneIcon className="h-5 w-5 text-gray-500 dark:text-gray-400 mr-2 flex-shrink-0" />
-                  <div>
-                    <p className="font-medium dark:text-white">Phone</p>
-                    <p className="text-gray-600 dark:text-gray-400">{orderDetails.driver.phone}</p>
-                  </div>
+                  <a
+                    href={`tel:${orderDetails.driver.phone}`}
+                    className="flex items-center justify-center mt-2 py-2 w-full bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+                  >
+                    <PhoneIcon className="h-4 w-4 mr-2" />
+                    Call Driver
+                  </a>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         ) : (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-            <h3 className="text-lg font-semibold mb-6 dark:text-white">Delivery Timeline</h3>
-            <div className="space-y-8">
-              {orderDetails.deliveryTimeline.map((stage, index) => (
-                <div key={index} className="flex">
-                  <div className="relative mr-6">
-                    <div className={`h-6 w-6 rounded-full flex items-center justify-center text-white ${index === orderDetails.deliveryTimeline.length - 1 ? 'bg-green-500' : 'bg-blue-500'}`}>
-                      {index === orderDetails.deliveryTimeline.length - 1 ? (
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                      ) : (
-                        <span className="text-xs">{index + 1}</span>
-                      )}
+            <div className="relative">
+              {orderDetails.deliveryTimeline.map((item, index) => (
+                <div key={index} className="mb-8 flex last:mb-0">
+                  <div className="flex flex-col items-center mr-4">
+                    <div className={`rounded-full h-8 w-8 flex items-center justify-center ${
+                      index === orderDetails.deliveryTimeline.length - 1
+                        ? 'bg-green-500 text-white'
+                        : 'bg-blue-100 text-blue-500'
+                    }`}>
+                      {index + 1}
                     </div>
                     {index < orderDetails.deliveryTimeline.length - 1 && (
-                      <div className="h-full w-0.5 bg-gray-200 dark:bg-gray-700 absolute top-6 left-1/2 transform -translate-x-1/2"></div>
+                      <div className="h-full w-0.5 bg-gray-200 dark:bg-gray-700"></div>
                     )}
                   </div>
-                  <div className="flex-1 pb-8">
-                    <div className="flex justify-between items-start mb-1">
-                      <h4 className="font-medium text-lg dark:text-white">{stage.status}</h4>
-                      <span className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs px-2 py-1 rounded">
-                        {stage.time}
+                  <div className={`bg-gray-50 dark:bg-gray-700 p-4 rounded-lg shadow-sm flex-1 ${
+                    index === orderDetails.deliveryTimeline.length - 1 ? 'border-l-4 border-green-500' : ''
+                  }`}>
+                    <div className="flex justify-between items-center mb-2">
+                      <h4 className="font-medium dark:text-white">{item.status}</h4>
+                      <span className="text-sm text-gray-500 dark:text-gray-400 flex items-center">
+                        <ClockIcon className="h-4 w-4 mr-1" />
+                        {item.time}
                       </span>
                     </div>
-                    <p className="text-gray-600 dark:text-gray-400">{stage.description}</p>
+                    <p className="text-gray-600 dark:text-gray-300">{item.description}</p>
                   </div>
                 </div>
               ))}

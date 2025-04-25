@@ -2,11 +2,11 @@ import React from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 
-interface ProtectedRouteProps {
+interface PublicRouteProps {
   children: React.ReactNode;
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
+const PublicRoute: React.FC<PublicRouteProps> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
 
@@ -19,13 +19,14 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     );
   }
 
-  // If not authenticated, redirect to login with the current location
-  if (!isAuthenticated) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+  // If authenticated, redirect to home or the page they were trying to access
+  if (isAuthenticated) {
+    const from = (location.state as any)?.from?.pathname || "/";
+    return <Navigate to={from} replace />;
   }
 
-  // If authenticated, show the protected route
+  // If not authenticated, show the public route
   return <>{children}</>;
 };
 
-export default ProtectedRoute;
+export default PublicRoute;
