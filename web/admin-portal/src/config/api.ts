@@ -1,4 +1,5 @@
 const baseURL = process.env.REACT_APP_API_BASE_URL || "http://localhost:3001";
+const apiKey = "http://localhost:5005";
 
 export const api = {
   baseURL,
@@ -39,6 +40,11 @@ export const api = {
       getSales: `${baseURL}/api/reports/sales`,
       getUsers: `${baseURL}/api/reports/users`,
       getRestaurants: `${baseURL}/api/reports/restaurants`,
+    },
+    notifications: {
+      getAll: `${apiKey}/api/notifications`,
+      markAsRead: (id: string) => `${apiKey}/api/notifications/${id}/read`,
+      markAllAsRead: `${apiKey}/api/notifications/read-all`,
     },
   },
 };
