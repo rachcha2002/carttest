@@ -48,8 +48,16 @@ const orderService = {
       if (!token) {
         throw new Error('Authentication required');
       }
+
+      // Get user ID from the token
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const userId = payload.id;
       
-      const response = await axios.get(`${ORDER_API_URL}/user`, {
+      if (!userId) {
+        throw new Error('User ID not found in token');
+      }
+      
+      const response = await axios.get(`${ORDER_API_URL}/user/${userId}`, {
         headers: {
           Authorization: `Bearer ${token}`
         }

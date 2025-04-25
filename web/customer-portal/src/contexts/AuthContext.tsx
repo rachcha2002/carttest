@@ -47,7 +47,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [token, setToken] = useState<string | null>(
     localStorage.getItem("token")
   );
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true); // Start with loading true
   const [error, setError] = useState<string | null>(null);
   const [sessionTimeRemaining, setSessionTimeRemaining] = useState<
     number | null
@@ -56,23 +56,62 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   // Load user data if token exists
   useEffect(() => {
     const loadUser = async () => {
-      if (token && !user) {
+      if (token) {
         try {
+          // First try to get user data with current token
           const response = await axios.get(`${API_URL}/auth/me`, {
             headers: {
               Authorization: `Bearer ${token}`,
             },
           });
-          setUser(response.data.user);
+
+          // Transform user data to match our interface
+          const userData = response.data.user;
+          setUser({
+            ...userData,
+            id: userData._id || userData.id, // Handle both formats
+          });
+          setIsLoading(false);
         } catch (error) {
-          localStorage.removeItem("token");
-          setToken(null);
+          // If token is invalid, try to refresh it
+          try {
+            const refreshResponse = await axios.post(
+              `${API_URL}/auth/refresh-token`,
+              { token }
+            );
+            const newToken = refreshResponse.data.token;
+            setToken(newToken);
+            localStorage.setItem("token", newToken);
+
+            // Retry getting user data with new token
+            const userResponse = await axios.get(`${API_URL}/auth/me`, {
+              headers: {
+                Authorization: `Bearer ${newToken}`,
+              },
+            });
+
+            // Transform user data to match our interface
+            const userData = userResponse.data.user;
+            setUser({
+              ...userData,
+              id: userData._id || userData.id, // Handle both formats
+            });
+          } catch (refreshError) {
+            // If refresh also fails, clear everything
+            localStorage.removeItem("token");
+            setToken(null);
+            setUser(null);
+          } finally {
+            setIsLoading(false);
+          }
         }
+      } else {
+        setIsLoading(false);
       }
     };
 
     loadUser();
-  }, [token, user]);
+  }, [token]);
 
   // Token expiration check for session timer
   useEffect(() => {
@@ -87,6 +126,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         const expiryTime = payload.exp * 1000;
         const remaining = Math.floor((expiryTime - Date.now()) / 1000);
         setSessionTimeRemaining(remaining > 0 ? remaining : 0);
+
+        // If token is about to expire (within 5 minutes), try to refresh it
+        if (remaining < 300) {
+          refreshToken();
+        }
       } catch (error) {
         setSessionTimeRemaining(null);
       }
@@ -108,7 +152,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         password,
       });
       const { token: newToken, user: userData } = response.data;
-      setUser(userData);
+
+      // Transform user data to match our interface
+      setUser({
+        ...userData,
+        id: userData._id || userData.id, // Handle both formats
+      });
       setToken(newToken);
       localStorage.setItem("token", newToken);
       toast.success("Login successful!");
@@ -144,7 +193,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       });
 
       const { token: newToken, user: userData } = response.data;
-      setUser(userData);
+
+      // Transform user data to match our interface
+      setUser({
+        ...userData,
+        id: userData._id || userData.id, // Handle both formats
+      });
       setToken(newToken);
       localStorage.setItem("token", newToken);
       toast.success("Registration successful!");
@@ -179,7 +233,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-      setUser(response.data.user);
+
+      // Transform user data to match our interface
+      const updatedUser = response.data.user;
+      setUser({
+        ...updatedUser,
+        id: updatedUser._id || updatedUser.id, // Handle both formats
+      });
       toast.success("Profile updated successfully");
       return true;
     } catch (error: any) {
@@ -194,6 +254,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const refreshToken = async (): Promise<boolean> => {
+    if (!token) return false;
+
     try {
       const response = await axios.post(`${API_URL}/auth/refresh-token`, {
         token,
@@ -202,11 +264,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       const { token: newToken } = response.data;
       setToken(newToken);
       localStorage.setItem("token", newToken);
-      toast.success("Session refreshed", { id: "session-refresh" });
       return true;
     } catch (error) {
       logout();
-      toast.error("Session expired. Please login again.");
       return false;
     }
   };

@@ -1,85 +1,88 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import OrderItem, { OrderItemProps } from '../components/order/OrderItem';
-
-// Dummy data for orders
-const dummyOrders: OrderItemProps[] = [
-  {
-    id: 'ORD-12345',
-    restaurantName: 'Tasty Bites',
-    date: 'June 15, 2023 - 7:30 PM',
-    total: 30.35,
-    status: 'delivered',
-    items: ['Margherita Pizza', 'Garlic Bread', 'Coca-Cola (2)'],
-  },
-  {
-    id: 'ORD-12346',
-    restaurantName: 'Burger Palace',
-    date: 'June 12, 2023 - 12:45 PM',
-    total: 25.80,
-    status: 'delivered',
-    items: ['Double Cheeseburger', 'French Fries', 'Chocolate Milkshake'],
-  },
-  {
-    id: 'ORD-12347',
-    restaurantName: 'Sushi Express',
-    date: 'June 10, 2023 - 8:15 PM',
-    total: 42.50,
-    status: 'delivered',
-    items: ['California Roll (8 pcs)', 'Spicy Tuna Roll (6 pcs)', 'Miso Soup', 'Green Tea'],
-  },
-  {
-    id: 'ORD-12348',
-    restaurantName: 'Taco Haven',
-    date: 'Today - 1:30 PM',
-    total: 18.75,
-    status: 'heading-your-way',
-    items: ['Beef Tacos (3)', 'Guacamole', 'Chips & Salsa'],
-    estimatedDeliveryTime: '25-35 min',
-  },
-  {
-    id: 'ORD-12349',
-    restaurantName: 'Pizza Paradise',
-    date: 'Today - 12:15 PM',
-    total: 35.90,
-    status: 'preparing-your-order',
-    items: ['Pepperoni Pizza (Large)', 'Chicken Wings (8 pcs)', 'Garden Salad', 'Sprite'],
-    estimatedDeliveryTime: '40-50 min',
-  },
-  {
-    id: 'ORD-12350',
-    restaurantName: 'Burger Barn',
-    date: 'Today - 11:45 AM',
-    total: 27.50,
-    status: 'order-received',
-    items: ['Deluxe Burger', 'Onion Rings', 'Root Beer'],
-    estimatedDeliveryTime: '50-60 min',
-  },
-  {
-    id: 'ORD-12351',
-    restaurantName: 'Italian Bistro',
-    date: 'Today - 12:30 PM',
-    total: 42.75,
-    status: 'wrapping-up',
-    items: ['Fettuccine Alfredo', 'Bruschetta', 'Tiramisu'],
-    estimatedDeliveryTime: '35-45 min',
-  },
-  {
-    id: 'ORD-12352',
-    restaurantName: 'Pho Delicious',
-    date: 'Today - 12:20 PM',
-    total: 31.25,
-    status: 'picking-up',
-    items: ['Beef Pho', 'Spring Rolls', 'Vietnamese Coffee'],
-    estimatedDeliveryTime: '30-40 min',
-  },
-];
-
-// Separate the active orders from past orders
-const activeOrders = dummyOrders.filter(order => order.status !== 'delivered' && order.status !== 'cancelled');
-const pastOrders = dummyOrders.filter(order => order.status === 'delivered' || order.status === 'cancelled');
+import { useAuth } from '../contexts/AuthContext';
+import orderService from '../services/orderService';
+import { toast } from 'react-hot-toast';
 
 const OrdersPage: React.FC = () => {
+  const { user, isAuthenticated } = useAuth();
+  const [orders, setOrders] = useState<OrderItemProps[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchOrders = async () => {
+      if (!isAuthenticated) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const response = await orderService.getUserOrders();
+        
+        if (response.success) {
+          const formattedOrders: OrderItemProps[] = response.data.map((order: any) => ({
+            id: order.orderId,
+            restaurantName: order.restaurant?.restaurantInfo?.restaurantName || 'Unknown Restaurant',
+            date: new Date(order.createdAt).toLocaleString(),
+            total: order.total,
+            status: order.status,
+            items: order.foods.map((food: any) => `${food.name} (${food.quantity})`),
+            estimatedDeliveryTime: order.status !== 'delivered' && order.status !== 'cancelled' 
+              ? '30-45 min' 
+              : undefined,
+          }));
+          
+          setOrders(formattedOrders);
+        } else {
+          setError('Failed to fetch orders');
+          toast.error('Failed to fetch your orders');
+        }
+      } catch (err) {
+        console.error('Error fetching orders:', err);
+        setError('Error fetching orders');
+        toast.error('Error loading your orders');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOrders();
+  }, [isAuthenticated, user]);
+
+  // Separate the active orders from past orders
+  const activeOrders = orders.filter(order => order.status !== 'delivered' && order.status !== 'cancelled');
+  const pastOrders = orders.filter(order => order.status === 'delivered' || order.status === 'cancelled');
+
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-8 max-w-5xl">
+        <div className="flex flex-col items-center justify-center h-64">
+          <div className="w-16 h-16 border-t-4 border-b-4 border-blue-500 rounded-full animate-spin mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Loading your orders...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container mx-auto px-4 py-8 max-w-5xl">
+        <div className="bg-red-50 dark:bg-red-900/20 p-6 rounded-lg text-center">
+          <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -130,7 +133,7 @@ const OrdersPage: React.FC = () => {
         </section>
       )}
 
-      {dummyOrders.length === 0 && (
+      {orders.length === 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-10 text-center">
           <div className="mb-4 flex justify-center">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
